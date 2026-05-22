@@ -388,7 +388,7 @@ export default function App() {
         }
 
         if (card.state === 'active') {
-          return { ...card, state: 'expanded' };
+          return { ...card, state: 'minimized' };
         }
 
         return card;
@@ -675,6 +675,18 @@ export default function App() {
         return haystack.includes(normalizedSearchQuery);
       })
     : [];
+  const activeCanvasCard = editorCards.find((card) => card.state === 'active') ?? null;
+  const defaultCanvasCards = editorCards.filter((card) => card.folderId === (activeFolderId || undefined));
+  const cardsToRender = normalizedSearchQuery
+    ? matchingCards
+    : activeCanvasCard
+      ? [activeCanvasCard]
+      : defaultCanvasCards;
+  const isSoloActiveCanvas =
+    !normalizedSearchQuery &&
+    cardsToRender.length === 1 &&
+    cardsToRender[0]?.state === 'active';
+  const isWritingFocus = isSoloActiveCanvas;
 
   // Set initial text when active card loads
   useEffect(() => {
@@ -797,7 +809,12 @@ export default function App() {
           <motion.header 
             initial={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="relative z-10 flex h-14 sm:h-16 w-full items-center justify-between gap-3 sm:gap-4 mb-6 md:mb-8"
+            animate={{
+              opacity: isWritingFocus ? 0.62 : 1,
+              y: 0,
+            }}
+            transition={{ duration: 0.28, ease: 'easeOut' }}
+            className={`relative z-10 flex h-14 sm:h-16 w-full items-center justify-between gap-3 sm:gap-4 mb-6 md:mb-8 transition-opacity duration-300 ${isWritingFocus ? 'lg:hover:opacity-100' : ''}`}
           >
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <button 
@@ -830,7 +847,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar + Main Layout */}
-      <div className="relative z-10 flex-1 flex flex-col lg:flex-row gap-8 lg:gap-12 pl-0 lg:-ml-4">
+      <div className={`relative z-10 flex-1 flex flex-col lg:flex-row pl-0 lg:-ml-4 transition-[gap] duration-300 ${isWritingFocus ? 'gap-6 lg:gap-8' : 'gap-8 lg:gap-12'}`}>
         
         {/* Mobile Sidebar Backdrop */}
         <AnimatePresence>
@@ -850,10 +867,14 @@ export default function App() {
           {isSidebarOpen && (
             <motion.aside 
               initial={{ opacity: 0, x: -260 }}
-              animate={{ opacity: 1, x: 0 }}
+              animate={{
+                opacity: isWritingFocus ? 0.38 : 1,
+                x: 0,
+                scale: isWritingFocus ? 0.985 : 1,
+              }}
               exit={{ opacity: 0, x: -260 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed lg:relative top-0 bottom-0 left-0 z-30 lg:z-10 w-[280px] lg:w-64 h-[100dvh] lg:h-auto pt-12 lg:pt-4 pb-6 px-6 lg:px-0 lg:py-0 flex flex-col gap-4 shrink-0 border-r lg:border-none overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none ${surfaceTheme.sidebar}`}
+              className={`fixed lg:relative top-0 bottom-0 left-0 z-30 lg:z-10 w-[280px] lg:w-64 h-[100dvh] lg:h-auto pt-12 lg:pt-4 pb-6 px-6 lg:px-0 lg:py-0 flex flex-col gap-4 shrink-0 border-r lg:border-none overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none transition-[opacity,transform,filter] duration-300 ${isWritingFocus ? 'lg:-translate-x-2 lg:blur-[0.2px] lg:hover:translate-x-0 lg:hover:opacity-100 lg:hover:scale-100 lg:hover:blur-none' : ''} ${surfaceTheme.sidebar}`}
             >
               <div className="w-full lg:w-[240px] flex flex-col pt-4">
                 {/* Folders & Notes List Header */}
@@ -1263,11 +1284,15 @@ export default function App() {
         </AnimatePresence>
 
         {/* Main Content Area */}
-        <main className="flex-1 flex flex-col transition-all gap-6 pl-0 lg:pl-4 overflow-y-auto overflow-x-hidden hide-scrollbar pb-10">
-          <div className="-mx-4 px-4 sm:-mx-5 sm:px-5 md:mx-0 md:px-0">
-            <div className={`flex w-full items-start overflow-x-auto overscroll-x-contain scroll-smooth snap-x snap-mandatory pb-3 pr-4 hide-scrollbar md:flex-wrap md:justify-center md:overflow-x-visible md:overscroll-x-auto md:snap-none lg:justify-start ${density.railGap}`}>
+        <main className={`flex-1 flex flex-col transition-all gap-6 overflow-y-auto overflow-x-hidden hide-scrollbar pb-10 ${isSoloActiveCanvas ? 'pl-0 lg:pl-8' : 'pl-0 lg:pl-4'}`}>
+          <div className={isSoloActiveCanvas ? '-mx-2 px-2 sm:-mx-3 sm:px-3 md:mx-0 md:px-0' : '-mx-4 px-4 sm:-mx-5 sm:px-5 md:mx-0 md:px-0'}>
+            <div className={`flex w-full items-start pb-3 hide-scrollbar ${
+              isSoloActiveCanvas
+                ? 'justify-center overflow-x-hidden'
+                : `overflow-x-auto overscroll-x-contain scroll-smooth snap-x snap-mandatory pr-4 md:flex-wrap md:justify-center md:overflow-x-visible md:overscroll-x-auto md:snap-none lg:justify-start ${density.railGap}`
+            }`}>
             <AnimatePresence>
-              {(normalizedSearchQuery ? matchingCards : editorCards.filter(c => c.folderId === (activeFolderId || undefined))).map(card => {
+              {cardsToRender.map(card => {
                 const isActiveCard = card.state === 'active';
                 const isExpandedCard = card.state === 'expanded' || isActiveCard;
                 const isMinimizedCard = card.state === 'minimized';
@@ -1275,7 +1300,7 @@ export default function App() {
                 const cardPalette = paletteById[card.color];
                 const accentStripHeight = isCollapsedCard ? '0.35rem' : isMinimizedCard ? '0.45rem' : '0.55rem';
                 const cardClassName = isActiveCard
-                  ? `w-[calc(100vw-2.75rem)] sm:w-[calc(100vw-3.5rem)] md:w-[min(25rem,calc(50vw-2.5rem))] lg:w-[23.5rem] h-[min(68vh,34rem)] sm:h-[min(70vh,36rem)] md:h-[34rem] min-h-[22rem] max-h-[42rem] ${density.cardLargePadding} creamy-card ${cardRadiusClasses.active} cursor-pointer transition-all duration-300 flex flex-col relative overflow-hidden shrink-0 snap-center ring-1 ring-slate-300/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.38)]`
+                  ? `w-[calc(100vw-1.5rem)] sm:w-[calc(100vw-2.5rem)] md:w-[min(52rem,calc(100vw-6rem))] lg:w-[min(64rem,calc(100vw-24rem))] xl:w-[min(68rem,calc(100vw-28rem))] h-[min(78vh,52rem)] sm:h-[min(80vh,54rem)] md:h-[min(82vh,56rem)] min-h-[28rem] max-h-[58rem] ${density.cardLargePadding} creamy-card ${cardRadiusClasses.active} cursor-pointer transition-all duration-500 flex flex-col relative overflow-hidden shrink-0 snap-center ring-1 ring-slate-300/70 shadow-[0_24px_56px_-36px_rgba(15,23,42,0.34)]`
                   : isExpandedCard
                     ? `w-[calc(100vw-2.75rem)] sm:w-[calc(100vw-3.5rem)] md:w-[min(24rem,calc(50vw-2.75rem))] lg:w-[22.5rem] h-[min(64vh,31rem)] sm:h-[min(66vh,33rem)] md:h-[31rem] min-h-[20rem] max-h-[38rem] ${density.cardLargePadding} creamy-card ${cardRadiusClasses.expanded} cursor-pointer hover:shadow-[0_18px_42px_-28px_rgba(15,23,42,0.32)] hover:cursor-grab active:cursor-grabbing transition-all duration-300 flex flex-col relative overflow-hidden shrink-0 snap-center`
                     : isMinimizedCard
@@ -1319,6 +1344,12 @@ export default function App() {
                         boxShadow: `inset 0 -1px 0 ${cardPalette.border}`,
                       }}
                     />
+                    {isActiveCard && (
+                      <>
+                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_34%),radial-gradient(circle_at_15%_20%,rgba(79,110,247,0.06),transparent_22%),radial-gradient(circle_at_85%_16%,rgba(255,255,255,0.08),transparent_16%)] opacity-90" />
+                        <div className="pointer-events-none absolute inset-x-[8%] top-8 h-16 rounded-full bg-white/40 blur-3xl opacity-55" />
+                      </>
+                    )}
                     <div className="flex flex-col h-full overflow-hidden">
                       {/* Card Header with Title and Control Buttons */}
                       <div 
@@ -1423,7 +1454,7 @@ export default function App() {
                                 setText(card.text);
                               }
                             }}
-                            className={`flex-1 w-full h-full bg-transparent border-none outline-none resize-none overflow-y-auto hide-scrollbar ${editorFontFamily} ${editorLineHeight} placeholder-slate-400/80 transition-colors ${card.id === activeCardId ? 'text-slate-800' : 'text-slate-600'} ${editorFontSize} ${isActiveCard ? 'pb-[4.5rem] sm:pb-[5rem]' : 'pb-[3.5rem] sm:pb-[4rem]'}`}
+                            className={`flex-1 w-full h-full bg-transparent border-none outline-none resize-none overflow-y-auto hide-scrollbar ${editorFontFamily} ${editorLineHeight} placeholder-slate-400/80 transition-colors ${card.id === activeCardId ? 'text-slate-800' : 'text-slate-600'} ${editorFontSize} ${isActiveCard ? 'mx-auto max-w-[56rem] pb-[5rem] pt-2 sm:pb-[5.5rem]' : 'pb-[3.5rem] sm:pb-[4rem]'}`}
                             placeholder=""
                           />
                           <div
@@ -1431,15 +1462,27 @@ export default function App() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             {isActiveCard && (
-                              <motion.button
+                              <motion.div
                                 initial={{ opacity: 0, scale: 0.96 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                onClick={handleSaveClick}
-                                className="pointer-events-auto ml-1 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/75 bg-[#f4f1ea]/92 text-slate-500 transition-colors hover:bg-[#efebe2] hover:text-slate-700 cursor-pointer"
-                                title="Save note"
+                                className="pointer-events-auto ml-1 flex items-center gap-2"
                               >
-                                <Save className="w-3.5 h-3.5" />
-                              </motion.button>
+                                <button
+                                  onClick={() => copyNoteText(card)}
+                                  className="flex h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200/75 bg-[#f4f1ea]/92 px-3 text-[11px] font-sans font-medium text-slate-500 transition-colors hover:bg-[#efebe2] hover:text-slate-700 cursor-pointer"
+                                  title="Copy note"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy</span>
+                                </button>
+                                <button
+                                  onClick={handleSaveClick}
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/75 bg-[#f4f1ea]/92 text-slate-500 transition-colors hover:bg-[#efebe2] hover:text-slate-700 cursor-pointer"
+                                  title="Save note"
+                                >
+                                  <Save className="w-3.5 h-3.5" />
+                                </button>
+                              </motion.div>
                             )}
 
                             <div className="pointer-events-auto mr-1 flex items-end">
